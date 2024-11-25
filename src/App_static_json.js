@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useTable, useFilters } from 'react-table';
+import Select from 'react-select';
+
+import CollapsibleTextarea from './CollapsableTextArea';
 
 // Sample data for Payload 1 and Payload 2
 const initialPayload1 = {
@@ -29,14 +32,43 @@ const validPayload2Fields = {
     gender: ["client.gender", "client.sex"]
 };
 
+// Filter Input Component for each column
+const DefaultColumnFilter = ({
+    column: { filterValue, preFilteredRows, setFilter }
+}) => {
+    return (
+        <input
+            type="text"
+            value={filterValue || ''}
+            onChange={e => setFilter(e.target.value || undefined)} // undefined clears the filter
+            placeholder={`Search...`}
+            className="form-control"
+        />
+    );
+};
+
 // Component for a single row in the mapping table
 const MappingRow = ({ index, mapping, validPayload2Fields, payload1, onChange, onAddValueMap, onRemoveValueMap }) => {
     const payload1Fields = Object.keys(payload1.request.body.details);
+    const options = payload1Fields.map((key) => ({
+        value: `request.body.details.${key}`,
+        label: `payload1: request.body.details.${key}`,
+    }));
 
     return (
         <tr>
             {/* Payload 1 Field */}
             <td>
+                <Select
+                    options={options}
+                    value={options.find((option) => option.value === mapping.payload1Field)}
+                    onChange={(selectedOption) => onChange(index, 'payload1Field', selectedOption.value)}
+                    className="form-select"
+                    placeholder="Select an option..."
+                    isSearchable // Enables search functionality
+                />
+            </td>
+            {/* <td>
                 <select
                     className="form-select"
                     onChange={(e) => onChange(index, 'payload1Field', e.target.value)}
@@ -48,7 +80,7 @@ const MappingRow = ({ index, mapping, validPayload2Fields, payload1, onChange, o
                         </option>
                     ))}
                 </select>
-            </td>
+            </td> */}
 
             {/* Payload 2 Field */}
             <td>
@@ -110,11 +142,50 @@ const MappingRow = ({ index, mapping, validPayload2Fields, payload1, onChange, o
 
 // Component to render the entire table
 const MappingTable = ({ mappings, validPayload2Fields, payload1, onMappingChange, onAddMapping, onAddValueMapping, onRemoveValueMapping, onRemoveMapping }) => {
+    const columns = React.useMemo(
+        () => [
+            {
+                Header: 'Payload 1 Field',
+                accessor: 'payload1Field', // accessor is the key in data
+                Filter: DefaultColumnFilter
+            },
+            {
+                Header: 'Payload 2 Field',
+                accessor: 'payload2Field',
+                Filter: DefaultColumnFilter
+            },
+            {
+                Header: 'Type',
+                accessor: 'type',
+                Filter: DefaultColumnFilter
+            },
+            {
+                Header: 'Value Maps',
+                accessor: 'valueMaps',
+                Filter: DefaultColumnFilter
+            }
+        ],
+        []
+    );
+
+    const {
+        getTableProps,
+        getTableBodyProps,
+        headerGroups,
+        rows,
+        prepareRow,
+        setFilter // Function to set filter for columns
+    } = useTable(
+        {
+            columns,
+            data: mappings
+        },
+        useFilters // Using the useFilters hook
+    );
+
     return (
         <div className="container mt-5">
-            <h1>JSON Mapping Tool</h1>
 
-            {/* Sticky Wrapper for Add Mapping button and Table */}
             <div className="sticky-wrapper">
                 {/* Sticky Add Mapping Button */}
                 <div className="mb-3 sticky-top" style={{ zIndex: 1 }}>
@@ -124,36 +195,50 @@ const MappingTable = ({ mappings, validPayload2Fields, payload1, onMappingChange
                 </div>
 
                 {/* Scrollable Table Container */}
-                <div style={{ maxHeight: '400px', overflowY: 'auto', marginTop: '10px' }}>
+                <div style={{ maxHeight: 'calc(100vh - 100px)', overflowY: 'auto', marginTop: '10px' }}>
                     {/* Table with Sticky Header */}
-                    <table className="table table-bordered table-striped">
+                    <table className="table table-bordered table-striped" {...getTableProps()}>
                         <thead className="sticky-top" style={{ backgroundColor: '#f8f9fa', zIndex: 2 }}>
-                            <tr>
-                                <th style={{ width: "25%" }}>Payload 1 Field</th>
-                                <th style={{ width: "25%" }}>Payload 2 Field</th>
-                                <th style={{ width: "15%" }}>Type</th>
-                                <th style={{ width: "35%" }}>Value Maps</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {mappings.map((mapping, index) => (
-                                <MappingRow
-                                    key={index}
-                                    index={index}
-                                    mapping={mapping}
-                                    validPayload2Fields={validPayload2Fields}
-                                    payload1={payload1}
-                                    onChange={onMappingChange}
-                                    onAddValueMap={onAddValueMapping}
-                                    onRemoveValueMap={onRemoveValueMapping}
-                                />
+                            {headerGroups.map(headerGroup => (
+                                <tr {...headerGroup.getHeaderGroupProps()}>
+                                    {headerGroup.headers.map(column => (
+                                        <th {...column.getHeaderProps()}>
+                                            {column.render('Header')}
+                                            {/* Render the filter input for each column */}
+                                            <div>{column.render('Filter')}</div>
+                                        </th>
+                                    ))}
+                                </tr>
                             ))}
+                        </thead>
+                        <tbody {...getTableBodyProps()}>
+                            {rows.map(row => {
+                                prepareRow(row);
+                                return (
+                                    <MappingRow
+                                        key={row.index}
+                                        index={row.index}
+                                        mapping={row.original}
+                                        validPayload2Fields={validPayload2Fields}
+                                        payload1={payload1}
+                                        onChange={onMappingChange}
+                                        onAddValueMap={onAddValueMapping}
+                                        onRemoveValueMap={onRemoveValueMapping}
+                                    />
+                                );
+                                // return (
+                                //     <tr {...row.getRowProps()}>
+                                //         {row.cells.map(cell => {
+                                //             return <td {...cell.getCellProps()}>{cell.render('Cell')}</td>;
+                                //         })}
+                                //     </tr>
+                                // );
+                            })}
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
-
     );
 };
 
@@ -172,7 +257,6 @@ const App = () => {
             setPayload1(newPayload1);
             setPayload1Input(e.target.value);
         } catch (error) {
-            // Handle invalid JSON input
             console.error("Invalid JSON format", error);
         }
     };
@@ -233,6 +317,7 @@ const App = () => {
             });
         });
         setPayload2(updatedPayload2);
+        setActiveTab('result');
     };
 
     const getNestedValue = (obj, path) => {
@@ -248,91 +333,39 @@ const App = () => {
         current[parts[parts.length - 1]] = value;
     };
 
-    // Import Mapping
-    const handleImportMapping = () => {
-        try {
-            const importedMappings = JSON.parse(payload1Input);
-            setMappings(importedMappings);
-        } catch (error) {
-            console.error("Invalid mapping JSON format", error);
-        }
-    };
-
     return (
-        <div className="container mt-5">
-            <h1>JSON Mapping Tool</h1>
+        <div>
+            {activeTab === 'create' && (
+                <div className="container mt-5">
+                    <h1>Create Mapping</h1>
 
-            {/* Tabs */}
-            <ul className="nav nav-tabs">
-                <li className="nav-item">
-                    <button
-                        className={`nav-link ${activeTab === 'create' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('create')}
-                    >
-                        Create Mapping from Input JSON
-                    </button>
-                </li>
-                <li className="nav-item">
-                    <button
-                        className={`nav-link ${activeTab === 'import' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('import')}
-                    >
-                        Import Mapping from JSON
-                    </button>
-                </li>
-            </ul>
+                    <CollapsibleTextarea
+                        payload1Input={payload1Input}
+                        handlePayload1Change={handlePayload1Change}
+                    />
 
-            {/* Tab Content */}
-            <div className="tab-content m-3">
-                {/* First Tab: Create Mapping */}
-                {activeTab === 'create' && (
-                    <div className="tab-pane fade show active">
-                        {/* Payload 1 (Editable JSON) */}
-                        <div>
-                            <h2>Create Mapping from Input JSON</h2>
-                            <textarea
-                                className="form-control"
-                                rows="10"
-                                value={payload1Input}
-                                onChange={handlePayload1Change}
-                            />
-                        </div>
+                    <MappingTable
+                        mappings={mappings}
+                        validPayload2Fields={validPayload2Fields}
+                        payload1={payload1}
+                        onMappingChange={handleMappingChange}
+                        onAddMapping={handleAddMapping}
+                        onAddValueMapping={handleAddValueMap}
+                        onRemoveValueMapping={handleRemoveValueMap}
+                        onRemoveMapping={handleRemoveMapping}
+                    />
+                    <div className="mt-3">
+                        <button className="btn btn-primary" onClick={handleSubmit}>Generate Payload 2</button>
                     </div>
-                )}
+                </div>
+            )}
 
-                {/* Second Tab: Import Mapping */}
-                {activeTab === 'import' && (
-                    <div className="tab-pane fade">
-                        <h2>Import Mapping from JSON</h2>
-                        <button className="btn btn-success m-2" onClick={handleImportMapping}>
-                            Import Mapping
-                        </button>
-
-                        <textarea
-                            className="form-control"
-                            rows="10"
-                            value={payload1Input}
-                            onChange={(e) => setPayload1Input(e.target.value)}
-                            placeholder="Paste your JSON mappings here"
-                        />
-                    </div>
-                )}
-
-                <MappingTable
-                    mappings={mappings}
-                    validPayload2Fields={validPayload2Fields}
-                    payload1={payload1}
-                    onMappingChange={handleMappingChange}
-                    onAddMapping={handleAddMapping}
-                    onAddValueMapping={handleAddValueMap}
-                    onRemoveValueMapping={handleRemoveValueMap}
-                    onRemoveMapping={handleRemoveMapping}
-                />
-
-                <button className="btn btn-primary mb-3 mt-3" onClick={handleSubmit}>
-                    Submit Mapping
-                </button>
-            </div>
+            {activeTab === 'result' && (
+                <div className="container mt-5">
+                    <h1>Generated Payload 2</h1>
+                    <pre>{JSON.stringify(payload2, null, 2)}</pre>
+                </div>
+            )}
         </div>
     );
 };
